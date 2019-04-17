@@ -5,6 +5,7 @@ import configparser
 import numpy as np
 import pandas as pd
 import pymysql
+from collections import Counter
 
 class GasControl():
     def __init__(self):
@@ -75,7 +76,7 @@ class GasControl():
         if self.b > 0:
             cursor.execute('select * from %s'%('abb2mysql'))
             self.abb2mysql=cursor.fetchall()
-            self.abb2mysql=np.matrix(self.abb2mysql)#self.abb2mysql对应数据库abb2mysql表单数据
+            self.abb2mysql=np.array(self.abb2mysql)#self.abb2mysql对应数据库abb2mysql表单数据
             #通过self.gl的高炉投用情况判断abb2mysql中哪些行需要删除
             list=[]#初始化一个空list
             for i in range(self.gl.shape[0]):
@@ -88,8 +89,20 @@ class GasControl():
             print(list)
             print(self.abb2mysql_del.shape)
             print(self.abb2mysql_del[:,1])
-            self.sum=self.abb2mysql[:,1].sum()#self.sum为管网内所有用煤气设备总数
-
+            print(self.abb2mysql_del[:,1].flatten())
+            self.counter_status=Counter(self.abb2mysql_del[:,3].flatten())#扁平化数据并统计各个参数个数，统计status个数
+            self.sum=self.counter_status[1.0]#self.sum为管网内所有用煤气设备总数,status列相加
+            self.sum_0=self.abb2mysql_del.shape[0]-self.sum#统计为status0的个数
+            #self.sum=self.abb2mysql_del[:,1].sum()
+            arg = np.argsort(self.abb2mysql_del[:, 3])  # 按第'3'列排序,返回的是升序排序索引
+            #降序排序用：arg = np.argsort(-self.abb2mysql_del[:, 3])
+            self.abb2mysql_del = np.matrix(self.abb2mysql_del[arg].tolist()) #返回排序矩阵并赋给原值
+            self.abb2mysql_del_sf = self.abb2mysql_del[0:self.sum_0,:]
+            self.abb2mysql_del_sl = self.abb2mysql_del[self.sum_0:,:]
+            print('sf',self.abb2mysql_del_sf)
+            print('sl', self.abb2mysql_del_sl)
+            print('b:',self.b)
+            print('sum:',self.sum)
             if self.sum >= self.b:
                 self.sub=1
             else:
