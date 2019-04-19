@@ -3,8 +3,8 @@
 #读取配置文件
 import configparser
 import numpy as np
-import pandas as pd
 import pymysql
+import time
 from collections import Counter
 
 class GasControl():
@@ -18,8 +18,16 @@ class GasControl():
         else:
             print('read over!')
         finally:
-            self.ss()
-            
+            self.en=1
+            self.period=1
+            while self.en:
+                self.ss()
+                config = configparser.ConfigParser()
+                config.read(self.configpath)
+                self.en=config['control']['en']
+                self.period = float(config['control']['period'])
+                self.period = self.period if self.period>0.1 else 0.1
+                time.sleep(self.period)
     def read_config(self,section='Mysql'):
         #读取配置文件
         try:
@@ -32,6 +40,7 @@ class GasControl():
             self.user = config[section]['user']
             self.password = config[section]['password']
             self.db = config[section]['db']
+
             #self.table = config[section]['table']
         except Exception as e:
             print('configparser error:',e)
@@ -152,9 +161,42 @@ class GasControl():
             if bias_modified[0] < bias[0] * self.abb2mysql_del_sl[0, -2]:
                 bias_modified[0] = bias[0] * self.abb2mysql_del_sl[0, -2]
         #四、把计算结果存至表中：
-            test=[0]*10
-            test[:len(bias_modified)]=bias_modified
-            print(test)
+            #1、烧炉数据
+            self.rflsl_num=[0]*10
+            self.slsj_current_left=[0]*10
+            self.slsj_next_wait = [0] * 10
+            self.bias=[0]*10
+            self.bias_modified=[0]*10
+            #①可利用reshape把列向量转换为行向量，再tolist成list，但多一个中括号:self.rflsl_num[:len(bias_modified)]=self.abb2mysql_del_sl[:,2].reshape(1,-1).tolist()
+            #②可利用把matrix转换为nparray，再用flatten把列向量展开，再tolist完成。
+            self.rflsl_num[:len(bias_modified)] = np.array(self.abb2mysql_del_sl[:, 2]).flatten().tolist()
+            self.slsj_next_wait[:len(bias_modified)]=np.array(self.abb2mysql_del_sl[:,-3]).flatten().tolist()
+            self.slsj_current_left[:len(bias_modified)]=np.array(self.abb2mysql_del_sl[:,-9]).flatten().tolist()
+            self.bias[:len(bias_modified)]=bias
+            self.bias_modified[:len(bias_modified)]=bias_modified
+            print('num:',self.rflsl_num)
+            print('wait:',self.slsj_next_wait)
+            print('bias:',self.bias)
+            print('self.biasmodified',self.bias_modified)
+            print('biasmodified',bias_modified)
+
+            #2、送风数据
+            self.rflsf_num = [0] * 10
+            self.sfsj_left = [0] * 10
+            self.rflsf_num[:self.abb2mysql_del_sf.shape[0]]= np.array(self.abb2mysql_del_sf[:,2]).flatten().tolist()
+            self.sfsj_left[:self.abb2mysql_del_sf.shape[0]]=np.array(self.abb2mysql_del_sf[:,-8]).flatten().tolist()
+            for i in range(len(self.rflsl_num)):
+                query = "update py2mysql_sl set rfl_sl=%s,slsj_current_left=%s,slsj_next_wait=%s,bias=%s,bias_modified=%s where ID=%s;"\
+                        %(self.rflsl_num[i],self.slsj_current_left[i],self.slsj_next_wait[i],self.bias[i],self.bias_modified[i],i+1)
+                cursor.execute(query)
+                query2 ="update py2mysql_sf set rfl_sf=%s,sfsj_left=%s where ID=%s;"\
+                        %(self.rflsf_num[i],self.sfsj_left[i],i+1)
+                cursor.execute(query2)
+            query3="update py2mysql set `add`=%s,`sub`=%s,`sum`=%s,`b`=%s where ID=1;"\
+                        %(self.add,self.sub,self.sum,self.b)
+            print(query3)
+            cursor.execute(query3)
+        db.commit()
         cursor.close()
         db.close()
 
