@@ -21,6 +21,7 @@ class GasControl():
             self.en=1
             self.period=1
             while self.en:
+                print('While start!')
                 self.ss()
                 config = configparser.ConfigParser()
                 config.read(self.configpath)
@@ -28,6 +29,8 @@ class GasControl():
                 self.period = float(config['control']['period'])
                 self.period = self.period if self.period>0.1 else 0.1
                 time.sleep(self.period)
+
+
     def read_config(self,section='Mysql'):
         #读取配置文件
         try:
@@ -36,11 +39,9 @@ class GasControl():
             #sections()获取ini文件内所有的section，以列表形式返回['logging', 'mysql']
             config.read(self.configpath)
             self.host = config[section]['host']
-            print(self.host)
             self.user = config[section]['user']
             self.password = config[section]['password']
             self.db = config[section]['db']
-
             #self.table = config[section]['table']
         except Exception as e:
             print('configparser error:',e)
@@ -110,16 +111,10 @@ class GasControl():
                 arg1 = np.argsort(self.abb2mysql_del_sf[:, -8]) #按照倒数第四列sfsj_bias排序，返回升序索引
                 self.abb2mysql_del_sf=np.matrix(self.abb2mysql_del_sf[arg1].tolist())
                 self.rfl_sf=self.abb2mysql_del_sf[0,2]#第一个需要送风的设备编号
-                print('rfl_sf',self.rfl_sf)
             if self.sum > 1:#sl设备大于1时执行排序
                 arg2 = np.argsort(self.abb2mysql_del_sl[:,-9]) #按照倒数第四列sfsj_bias排序，返回升序索引
                 self.abb2mysql_del_sl=np.matrix(self.abb2mysql_del_sl[arg2].tolist())
                 self.rfl_sl = self.abb2mysql_del_sl[0, 2]#第一个需要烧炉的设备编号
-                print('rfl_sl', self.rfl_sl)
-            print('sf',self.abb2mysql_del_sf)
-            print('sl', self.abb2mysql_del_sl)
-            print('b:',self.b)
-            print('sum:',self.sum)
             #py2mysql表输出内容
             #sub:是否允许减少用煤设备
             if self.sum >= self.b:
@@ -134,16 +129,9 @@ class GasControl():
         #三、烧炉时间规划：
             bias = [0] * self.abb2mysql_del_sl.shape[0]
             bias_modified = [0] * self.abb2mysql_del_sl.shape[0]
-            print('hang',self.abb2mysql_del_sl.shape[0])
             for i in range(self.abb2mysql_del_sl.shape[0]-1):
                 # 需要增加的烧炉时间（多等待时间） = 实际需要等待时间 - 剩余烧炉时间
-                # if i!=self.abb2mysql_del_sl.shape[0]:
-                #     print('i+1:',i+1)
-                #     print(self.abb2mysql_del_sl[i,-3])
-                #     print(self.abb2mysql_del_sl[i+1,-9])
-
                 bias[i+1] = self.abb2mysql_del_sl[i,-3] - self.abb2mysql_del_sl[i+1,-9]
-                print('biasI+1',bias[i + 1])
                 # bias为正时说明本炉需要多等待的时间，为负时说明可为下一炉调整的时间余量有多少
                 # bias[i+1] = bias[i+1] if bias[i+1]>0 else 0
                 if bias[i] > 0:  # 第（i）炉需要等待,bias[0]=0，故i不等于0
@@ -174,11 +162,6 @@ class GasControl():
             self.slsj_current_left[:len(bias_modified)]=np.array(self.abb2mysql_del_sl[:,-9]).flatten().tolist()
             self.bias[:len(bias_modified)]=bias
             self.bias_modified[:len(bias_modified)]=bias_modified
-            print('num:',self.rflsl_num)
-            print('wait:',self.slsj_next_wait)
-            print('bias:',self.bias)
-            print('self.biasmodified',self.bias_modified)
-            print('biasmodified',bias_modified)
 
             #2、送风数据
             self.rflsf_num = [0] * 10
@@ -194,7 +177,7 @@ class GasControl():
                 cursor.execute(query2)
             query3="update py2mysql set `add`=%s,`sub`=%s,`sum`=%s,`b`=%s where ID=1;"\
                         %(self.add,self.sub,self.sum,self.b)
-            print(query3)
+
             cursor.execute(query3)
         db.commit()
         cursor.close()
