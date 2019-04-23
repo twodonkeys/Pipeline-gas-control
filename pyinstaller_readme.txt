@@ -1,3 +1,3 @@
-1、cd 到工程目录
-2、pyinstaller -D -w -i dlna.ico main.py
-3、\dist\main下的main.exe即是运行程序
+1:命令行,cd到要打包的.py文件根目录下；
+2：运行 pyinstaller --onedir --windowed --icon="/resource/dlna.ico" Main.py
+3：把config文件拷贝至main.exe根目录下。

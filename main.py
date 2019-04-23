@@ -4,8 +4,9 @@
 import configparser
 import numpy as np
 import pymysql
-import time
 from collections import Counter
+import time
+import win32event, pywintypes, win32api
 
 class GasControl():
     def __init__(self):
@@ -18,16 +19,14 @@ class GasControl():
         else:
             print('read over!')
         finally:
-            self.en=1
-            self.period=1
+            config = configparser.ConfigParser()
+            config.read(self.configpath)
+            self.en = config['control']['en']
+            self.period = float(config['control']['period'])
+            self.period = self.period if self.period > 0.1 else 0.1
             while self.en:
                 print('While start!')
                 self.ss()
-                config = configparser.ConfigParser()
-                config.read(self.configpath)
-                self.en=config['control']['en']
-                self.period = float(config['control']['period'])
-                self.period = self.period if self.period>0.1 else 0.1
                 time.sleep(self.period)
 
 
@@ -184,7 +183,17 @@ class GasControl():
         db.close()
 
 if __name__=='__main__':
-    myss=GasControl()
+    # 防止同时启动两个程序
+    ERROR_ALREADY_EXISTS = 183
+    sz_mutex = "test_mutex"
+    hmutex = win32event.CreateMutex(None, pywintypes.FALSE, sz_mutex)
+    if (win32api.GetLastError() == ERROR_ALREADY_EXISTS):
+        print('The program is already running!')
+        exit(0)
+    else:
+        # 启动主程序
+        myss = GasControl()
+
 
 
 
